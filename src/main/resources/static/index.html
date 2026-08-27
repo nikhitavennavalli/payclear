@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>PayClear - Fast Payments & Analytics</title>
+    <title>PayClear - Fast Payments & Reconciliation</title>
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -26,9 +26,16 @@
         th { background-color: #007bff; color: white; }
         .action-cell { display: flex; gap: 6px; align-items: center; }
 
-        /* Analytics Chart Layout */
         .charts-wrapper { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px; }
         .chart-box { flex: 1; min-width: 300px; height: 280px; position: relative; }
+
+        /* Reconciliation Grid Styles */
+        .reconcile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-top: 15px; }
+        .stat-card { background: #f8f9fa; border-left: 4px solid #007bff; padding: 15px; border-radius: 6px; }
+        .stat-card.success { border-left-color: #28a745; }
+        .stat-card.warning { border-left-color: #ffc107; }
+        .stat-card h4 { margin: 0; font-size: 12px; color: #6c757d; text-transform: uppercase; }
+        .stat-card p { margin: 8px 0 0; font-size: 20px; font-weight: bold; color: #212529; }
     </style>
 </head>
 <body>
@@ -50,6 +57,28 @@
 
     <button class="submit-btn" onclick="submitPayment()">Submit Payment</button>
     <div id="responseMessage"></div>
+</div>
+
+<div class="card">
+    <h2>Automated Daily Reconciliation Engine</h2>
+    <div class="reconcile-grid">
+        <div class="stat-card">
+            <h4>Total Sales Volume</h4>
+            <p id="recGross">$0.00</p>
+        </div>
+        <div class="stat-card warning">
+            <h4>Processing Fees + GST</h4>
+            <p id="recFees">$0.00</p>
+        </div>
+        <div class="stat-card success">
+            <h4>Expected Bank Payout</h4>
+            <p id="recNet">$0.00</p>
+        </div>
+        <div class="stat-card">
+            <h4>Successful Settlements</h4>
+            <p id="recCount">0</p>
+        </div>
+    </div>
 </div>
 
 <div class="card">
@@ -91,7 +120,25 @@
     let methodChartInstance = null;
     let summaryChartInstance = null;
 
-    window.onload = loadPayments;
+    window.onload = function() {
+        loadPayments();
+        loadReconciliation();
+    };
+
+    async function loadReconciliation() {
+        try {
+            const response = await fetch('/api/payments/reconcile');
+            if (!response.ok) return;
+
+            const rec = await response.json();
+            document.getElementById('recGross').innerText = `${rec.totalGrossAmount.toFixed(2)}`;
+            document.getElementById('recFees').innerText = `${(rec.totalProcessingFees + rec.totalGstDeductions).toFixed(2)}`;
+            document.getElementById('recNet').innerText = `${rec.expectedBankPayout.toFixed(2)}`;
+            document.getElementById('recCount').innerText = `${rec.successfulTransactions} / ${rec.totalTransactions}`;
+        } catch (error) {
+            console.error('Error fetching reconciliation summary:', error);
+        }
+    }
 
     async function loadPayments() {
         const query = document.getElementById('searchInput').value;
@@ -129,6 +176,7 @@
             });
 
             updateCharts(payments);
+            loadReconciliation();
         } catch (error) {
             console.error(error);
         }
@@ -151,11 +199,9 @@
             }
         });
 
-        // Destroy previous chart instances to update cleanly
         if (methodChartInstance) methodChartInstance.destroy();
         if (summaryChartInstance) summaryChartInstance.destroy();
 
-        // 1. Payment Method Distribution Chart
         const ctxMethod = document.getElementById('methodChart').getContext('2d');
         methodChartInstance = new Chart(ctxMethod, {
             type: 'pie',
@@ -173,7 +219,6 @@
             }
         });
 
-        // 2. Financial Overview Chart
         const ctxSummary = document.getElementById('summaryChart').getContext('2d');
         summaryChartInstance = new Chart(ctxSummary, {
             type: 'bar',

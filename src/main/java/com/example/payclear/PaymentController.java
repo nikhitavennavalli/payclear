@@ -42,6 +42,40 @@ public class PaymentController {
         return paymentRepository.findAll();
     }
 
+    @GetMapping("/reconcile")
+    public ReconciliationSummary getReconciliationSummary() {
+        List<Payment> allPayments = paymentRepository.findAll();
+
+        double totalGross = 0.0;
+        double totalFees = 0.0;
+        double totalGst = 0.0;
+        double expectedPayout = 0.0;
+        long successfulCount = 0;
+        long pendingCount = 0;
+
+        for (Payment p : allPayments) {
+            if ("SUCCESS".equalsIgnoreCase(p.getStatus())) {
+                totalGross += (p.getAmount() != null) ? p.getAmount() : 0.0;
+                totalFees += (p.getProcessingFee() != null) ? p.getProcessingFee() : 0.0;
+                totalGst += (p.getGst() != null) ? p.getGst() : 0.0;
+                expectedPayout += (p.getNetAmount() != null) ? p.getNetAmount() : 0.0;
+                successfulCount++;
+            } else if ("PENDING".equalsIgnoreCase(p.getStatus())) {
+                pendingCount++;
+            }
+        }
+
+        totalGross = Math.round(totalGross * 100.0) / 100.0;
+        totalFees = Math.round(totalFees * 100.0) / 100.0;
+        totalGst = Math.round(totalGst * 100.0) / 100.0;
+        expectedPayout = Math.round(expectedPayout * 100.0) / 100.0;
+
+        return new ReconciliationSummary(
+                totalGross, totalFees, totalGst, expectedPayout,
+                (long) allPayments.size(), successfulCount, pendingCount
+        );
+    }
+
     @GetMapping("/{id}")
     public Payment getPaymentById(@PathVariable Long id) {
         return paymentRepository.findById(id)

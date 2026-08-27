@@ -5,15 +5,16 @@
     <title>PayClear - Fast Payments</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f6f9; }
-        .card { background: white; padding: 24px; border-radius: 8px; max-width: 550px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card { background: white; padding: 24px; border-radius: 8px; max-width: 600px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h2 { margin-top: 0; color: #333; }
         label { display: block; margin-top: 12px; font-weight: bold; }
         input { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
         button { margin-top: 16px; padding: 10px 16px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; }
         button:hover { background-color: #0056b3; }
+        .delete-btn { background-color: #dc3545; padding: 6px 12px; width: auto; margin-top: 0; font-size: 14px; }
+        .delete-btn:hover { background-color: #bd2130; }
         #responseMessage { margin-top: 16px; font-weight: bold; }
 
-        /* Table Styles */
         table { width: 100%; border-collapse: collapse; margin-top: 12px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #007bff; color: white; }
@@ -44,16 +45,15 @@
             <th>Payer Name</th>
             <th>Amount ($)</th>
             <th>Status</th>
+            <th>Action</th>
         </tr>
         </thead>
         <tbody id="paymentTableBody">
-        <!-- Dynamic rows will load here -->
         </tbody>
     </table>
 </div>
 
 <script>
-    // Load existing transactions when the page loads
     window.onload = loadPayments;
 
     async function loadPayments() {
@@ -69,6 +69,7 @@
                     <td>${payment.payerName}</td>
                     <td>${payment.amount}</td>
                     <td>${payment.status}</td>
+                    <td><button class="delete-btn" onclick="deletePayment(${payment.id})">Delete</button></td>
                 </tr>`;
                 tableBody.innerHTML += row;
             });
@@ -103,7 +104,7 @@
                 messageDiv.innerText = `Payment Successful! ID: ${data.id}`;
                 document.getElementById('payerName').value = '';
                 document.getElementById('amount').value = '';
-                loadPayments(); // Refresh table automatically
+                loadPayments();
             } else {
                 messageDiv.style.color = 'red';
                 messageDiv.innerText = 'Transaction failed.';
@@ -111,6 +112,24 @@
         } catch (error) {
             messageDiv.style.color = 'red';
             messageDiv.innerText = 'Error connecting to server.';
+        }
+    }
+
+    async function deletePayment(id) {
+        if (!confirm(`Are you sure you want to delete payment ID ${id}?`)) return;
+
+        try {
+            const response = await fetch(`/api/payments/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                loadPayments();
+            } else {
+                alert('Failed to delete payment.');
+            }
+        } catch (error) {
+            console.error('Error deleting payment:', error);
         }
     }
 </script>

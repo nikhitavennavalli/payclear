@@ -29,13 +29,19 @@
         .charts-wrapper { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px; }
         .chart-box { flex: 1; min-width: 300px; height: 280px; position: relative; }
 
-        /* Reconciliation Grid Styles */
         .reconcile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-top: 15px; }
         .stat-card { background: #f8f9fa; border-left: 4px solid #007bff; padding: 15px; border-radius: 6px; }
         .stat-card.success { border-left-color: #28a745; }
         .stat-card.warning { border-left-color: #ffc107; }
         .stat-card h4 { margin: 0; font-size: 12px; color: #6c757d; text-transform: uppercase; }
         .stat-card p { margin: 8px 0 0; font-size: 20px; font-weight: bold; color: #212529; }
+
+        /* AI Assistant Box */
+        .ai-box { display: flex; gap: 10px; margin-top: 10px; }
+        .ai-box input { margin-top: 0; }
+        .ai-box button { margin-top: 0; width: auto; white-space: nowrap; background-color: #6f42c1; }
+        .ai-box button:hover { background-color: #593196; }
+        .sql-preview { background: #272822; color: #f8f8f2; padding: 10px; border-radius: 4px; font-family: monospace; margin-top: 10px; display: none; }
     </style>
 </head>
 <body>
@@ -57,6 +63,15 @@
 
     <button class="submit-btn" onclick="submitPayment()">Submit Payment</button>
     <div id="responseMessage"></div>
+</div>
+
+<div class="card">
+    <h2>AI Natural Language Assistant (Text-to-SQL)</h2>
+    <div class="ai-box">
+        <input type="text" id="aiQueryInput" placeholder="e.g., 'Show successful transactions' or 'Show UPI payments'">
+        <button onclick="runAiQuery()">Ask AI Assistant</button>
+    </div>
+    <div id="sqlPreview" class="sql-preview"></div>
 </div>
 
 <div class="card">
@@ -125,6 +140,32 @@
         loadReconciliation();
     };
 
+    async function runAiQuery() {
+        const queryText = document.getElementById('aiQueryInput').value.trim();
+        const sqlPreview = document.getElementById('sqlPreview');
+
+        if (!queryText) return;
+
+        try {
+            const response = await fetch('/api/payments/ai-query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: queryText })
+            });
+
+            if (!response.ok) return;
+
+            const resData = await response.json();
+            sqlPreview.style.display = 'block';
+            sqlPreview.innerHTML = `<strong>AI Answer:</strong> ${resData.summary}<br><br><code>Generated SQL: ${resData.sql}</code>`;
+
+            renderTable(resData.data);
+            updateCharts(resData.data);
+        } catch (error) {
+            console.error('AI Query failed:', error);
+        }
+    }
+
     async function loadReconciliation() {
         try {
             const response = await fetch('/api/payments/reconcile');
@@ -149,37 +190,40 @@
             if (!response.ok) throw new Error('Server error');
 
             const payments = await response.json();
-            const tableBody = document.getElementById('paymentTableBody');
-            tableBody.innerHTML = '';
-
-            payments.forEach(payment => {
-                const row = `<tr>
-                    <td>${payment.id}</td>
-                    <td>${payment.payerName}</td>
-                    <td>${payment.paymentMethod || 'UPI'}</td>
-                    <td>${payment.amount}</td>
-                    <td>${payment.processingFee || 0}</td>
-                    <td>${payment.gst || 0}</td>
-                    <td><strong>${payment.netAmount || payment.amount}</strong></td>
-                    <td>${payment.status}</td>
-                    <td class="action-cell">
-                        <select id="statusSelect-${payment.id}">
-                            <option value="SUCCESS" ${payment.status === 'SUCCESS' ? 'selected' : ''}>SUCCESS</option>
-                            <option value="PENDING" ${payment.status === 'PENDING' ? 'selected' : ''}>PENDING</option>
-                            <option value="REFUNDED" ${payment.status === 'REFUNDED' ? 'selected' : ''}>REFUNDED</option>
-                        </select>
-                        <button class="status-btn" onclick="updateStatus(${payment.id})">Update</button>
-                        <button class="delete-btn" onclick="deletePayment(${payment.id})">Delete</button>
-                    </td>
-                </tr>`;
-                tableBody.innerHTML += row;
-            });
-
+            renderTable(payments);
             updateCharts(payments);
             loadReconciliation();
         } catch (error) {
             console.error(error);
         }
+    }
+
+    function renderTable(payments) {
+        const tableBody = document.getElementById('paymentTableBody');
+        tableBody.innerHTML = '';
+
+        payments.forEach(payment => {
+            const row = `<tr>
+                <td>${payment.id}</td>
+                <td>${payment.payerName}</td>
+                <td>${payment.paymentMethod || 'UPI'}</td>
+                <td>${payment.amount}</td>
+                <td>${payment.processingFee || 0}</td>
+                <td>${payment.gst || 0}</td>
+                <td><strong>${payment.netAmount || payment.amount}</strong></td>
+                <td>${payment.status}</td>
+                <td class="action-cell">
+                    <select id="statusSelect-${payment.id}">
+                        <option value="SUCCESS" ${payment.status === 'SUCCESS' ? 'selected' : ''}>SUCCESS</option>
+                        <option value="PENDING" ${payment.status === 'PENDING' ? 'selected' : ''}>PENDING</option>
+                        <option value="REFUNDED" ${payment.status === 'REFUNDED' ? 'selected' : ''}>REFUNDED</option>
+                    </select>
+                    <button class="status-btn" onclick="updateStatus(${payment.id})">Update</button>
+                    <button class="delete-btn" onclick="deletePayment(${payment.id})">Delete</button>
+                </td>
+            </tr>`;
+            tableBody.innerHTML += row;
+        });
     }
 
     function updateCharts(payments) {

@@ -1,6 +1,9 @@
 package com.example.payclear;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 @Entity
 @Table(name = "payments")
@@ -10,8 +13,13 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "Payer name cannot be blank")
     private String payerName;
+
+    @NotNull(message = "Amount is required")
+    @Min(value = 1, message = "Amount must be at least 1")
     private Double amount;
+
     private String status;
 
     public Payment() {}

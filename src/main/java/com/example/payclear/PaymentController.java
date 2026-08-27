@@ -15,7 +15,11 @@ public class PaymentController {
 
     @PostMapping
     public Payment createPayment(@RequestBody Payment payment) {
-        payment.setStatus("SUCCESS");
+        if (payment.getAmount() == null || payment.getAmount() <= 0) {
+            payment.setStatus("FAILED");
+        } else {
+            payment.setStatus("SUCCESS");
+        }
         return paymentRepository.save(payment);
     }
 

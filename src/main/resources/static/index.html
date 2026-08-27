@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>PayClear - Fast Payments & Reconciliation</title>
+    <title>PayClear - Fast Payments & Analytics</title>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f6f9; }
         .card { background: white; padding: 24px; border-radius: 8px; max-width: 850px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
@@ -23,6 +25,10 @@
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #007bff; color: white; }
         .action-cell { display: flex; gap: 6px; align-items: center; }
+
+        /* Analytics Chart Layout */
+        .charts-wrapper { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px; }
+        .chart-box { flex: 1; min-width: 300px; height: 280px; position: relative; }
     </style>
 </head>
 <body>
@@ -44,6 +50,18 @@
 
     <button class="submit-btn" onclick="submitPayment()">Submit Payment</button>
     <div id="responseMessage"></div>
+</div>
+
+<div class="card">
+    <h2>Financial Analytics & Visual Breakdown</h2>
+    <div class="charts-wrapper">
+        <div class="chart-box">
+            <canvas id="methodChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <canvas id="summaryChart"></canvas>
+        </div>
+    </div>
 </div>
 
 <div class="card">
@@ -70,6 +88,9 @@
 </div>
 
 <script>
+    let methodChartInstance = null;
+    let summaryChartInstance = null;
+
     window.onload = loadPayments;
 
     async function loadPayments() {
@@ -106,9 +127,70 @@
                 </tr>`;
                 tableBody.innerHTML += row;
             });
+
+            updateCharts(payments);
         } catch (error) {
             console.error(error);
         }
+    }
+
+    function updateCharts(payments) {
+        let upiCount = 0, cardCount = 0, netBankingCount = 0;
+        let totalGross = 0, totalFees = 0, totalNet = 0;
+
+        payments.forEach(p => {
+            const method = p.paymentMethod || 'UPI';
+            if (method === 'UPI') upiCount++;
+            else if (method === 'CARD') cardCount++;
+            else if (method === 'NET_BANKING') netBankingCount++;
+
+            if (p.status === 'SUCCESS') {
+                totalGross += p.amount || 0;
+                totalFees += (p.processingFee || 0) + (p.gst || 0);
+                totalNet += p.netAmount || p.amount || 0;
+            }
+        });
+
+        // Destroy previous chart instances to update cleanly
+        if (methodChartInstance) methodChartInstance.destroy();
+        if (summaryChartInstance) summaryChartInstance.destroy();
+
+        // 1. Payment Method Distribution Chart
+        const ctxMethod = document.getElementById('methodChart').getContext('2d');
+        methodChartInstance = new Chart(ctxMethod, {
+            type: 'pie',
+            data: {
+                labels: ['UPI', 'Credit/Debit Card', 'Net Banking'],
+                datasets: [{
+                    data: [upiCount, cardCount, netBankingCount],
+                    backgroundColor: ['#007bff', '#28a745', '#ffc107']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { title: { display: true, text: 'Payment Method Breakdown' } }
+            }
+        });
+
+        // 2. Financial Overview Chart
+        const ctxSummary = document.getElementById('summaryChart').getContext('2d');
+        summaryChartInstance = new Chart(ctxSummary, {
+            type: 'bar',
+            data: {
+                labels: ['Gross Revenue', 'Total Deductions', 'Net Payout'],
+                datasets: [{
+                    label: 'Amount ($ / ₹)',
+                    data: [totalGross, totalFees, totalNet],
+                    backgroundColor: ['#17a2b8', '#dc3545', '#28a745']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { title: { display: true, text: 'Financial Margins Summary' } }
+            }
+        });
     }
 
     async function submitPayment() {

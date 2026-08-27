@@ -2,54 +2,70 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>PayClear - Fast Payments</title>
+    <title>PayClear - Fast Payments & Reconciliation</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f6f9; }
-        .card { background: white; padding: 24px; border-radius: 8px; max-width: 600px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card { background: white; padding: 24px; border-radius: 8px; max-width: 850px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h2 { margin-top: 0; color: #333; }
         label { display: block; margin-top: 12px; font-weight: bold; }
-        input { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-        button { margin-top: 16px; padding: 10px 16px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; }
+        input, select { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { margin-top: 16px; padding: 10px 16px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
         button:hover { background-color: #0056b3; }
-        .delete-btn { background-color: #dc3545; padding: 6px 12px; width: auto; margin-top: 0; font-size: 14px; }
+        .submit-btn { width: 100%; font-size: 16px; }
+        .delete-btn { background-color: #dc3545; margin-top: 0; }
         .delete-btn:hover { background-color: #bd2130; }
+        .status-btn { background-color: #28a745; margin-top: 0; }
+        .status-btn:hover { background-color: #218838; }
         #responseMessage { margin-top: 16px; font-weight: bold; }
-
-        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .search-container { display: flex; gap: 10px; margin-bottom: 15px; }
+        .search-container input { margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #007bff; color: white; }
+        .action-cell { display: flex; gap: 6px; align-items: center; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h2>PayClear Transaction</h2>
-
     <label for="payerName">Payer Name:</label>
     <input type="text" id="payerName" placeholder="Enter name">
 
-    <label for="amount">Amount ($):</label>
+    <label for="amount">Amount ($ / ₹):</label>
     <input type="number" id="amount" placeholder="Enter amount">
 
-    <button onclick="submitPayment()">Submit Payment</button>
+    <label for="paymentMethod">Payment Method:</label>
+    <select id="paymentMethod">
+        <option value="UPI">UPI</option>
+        <option value="CARD">Credit/Debit Card</option>
+        <option value="NET_BANKING">Net Banking</option>
+    </select>
 
+    <button class="submit-btn" onclick="submitPayment()">Submit Payment</button>
     <div id="responseMessage"></div>
 </div>
 
 <div class="card">
-    <h2>Recent Transactions</h2>
+    <h2>Recent Transactions & Fee Breakdown</h2>
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Search by Payer Name..." onkeyup="loadPayments()">
+    </div>
     <table>
         <thead>
         <tr>
             <th>ID</th>
-            <th>Payer Name</th>
-            <th>Amount ($)</th>
+            <th>Payer</th>
+            <th>Method</th>
+            <th>Gross</th>
+            <th>Fee (2%)</th>
+            <th>GST (18%)</th>
+            <th>Net Payout</th>
             <th>Status</th>
-            <th>Action</th>
+            <th>Actions</th>
         </tr>
         </thead>
-        <tbody id="paymentTableBody">
-        </tbody>
+        <tbody id="paymentTableBody"></tbody>
     </table>
 </div>
 
@@ -57,8 +73,13 @@
     window.onload = loadPayments;
 
     async function loadPayments() {
+        const query = document.getElementById('searchInput').value;
+        const url = query ? `/api/payments?search=${encodeURIComponent(query)}` : '/api/payments';
+
         try {
-            const response = await fetch('/api/payments');
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Server error');
+
             const payments = await response.json();
             const tableBody = document.getElementById('paymentTableBody');
             tableBody.innerHTML = '';
@@ -67,69 +88,93 @@
                 const row = `<tr>
                     <td>${payment.id}</td>
                     <td>${payment.payerName}</td>
+                    <td>${payment.paymentMethod || 'UPI'}</td>
                     <td>${payment.amount}</td>
+                    <td>${payment.processingFee || 0}</td>
+                    <td>${payment.gst || 0}</td>
+                    <td><strong>${payment.netAmount || payment.amount}</strong></td>
                     <td>${payment.status}</td>
-                    <td><button class="delete-btn" onclick="deletePayment(${payment.id})">Delete</button></td>
+                    <td class="action-cell">
+                        <select id="statusSelect-${payment.id}">
+                            <option value="SUCCESS" ${payment.status === 'SUCCESS' ? 'selected' : ''}>SUCCESS</option>
+                            <option value="PENDING" ${payment.status === 'PENDING' ? 'selected' : ''}>PENDING</option>
+                            <option value="REFUNDED" ${payment.status === 'REFUNDED' ? 'selected' : ''}>REFUNDED</option>
+                        </select>
+                        <button class="status-btn" onclick="updateStatus(${payment.id})">Update</button>
+                        <button class="delete-btn" onclick="deletePayment(${payment.id})">Delete</button>
+                    </td>
                 </tr>`;
                 tableBody.innerHTML += row;
             });
         } catch (error) {
-            console.error('Error fetching payments:', error);
+            console.error(error);
         }
     }
 
     async function submitPayment() {
-        const payerName = document.getElementById('payerName').value;
+        const payerName = document.getElementById('payerName').value.trim();
         const amount = document.getElementById('amount').value;
+        const paymentMethod = document.getElementById('paymentMethod').value;
         const messageDiv = document.getElementById('responseMessage');
 
-        if (!payerName || !amount) {
+        if (!payerName || !amount || parseFloat(amount) <= 0) {
             messageDiv.style.color = 'red';
-            messageDiv.innerText = 'Please fill out all fields.';
+            messageDiv.innerText = 'Please enter a valid name and positive amount.';
             return;
         }
-
-        const paymentData = { payerName: payerName, amount: parseFloat(amount) };
 
         try {
             const response = await fetch('/api/payments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(paymentData)
+                body: JSON.stringify({ payerName, amount: parseFloat(amount), paymentMethod })
             });
 
             if (response.ok) {
                 const data = await response.json();
                 messageDiv.style.color = 'green';
-                messageDiv.innerText = `Payment Successful! ID: ${data.id}`;
+                messageDiv.innerText = `Payment Recorded! Net Payout: ${data.netAmount}`;
                 document.getElementById('payerName').value = '';
                 document.getElementById('amount').value = '';
                 loadPayments();
             } else {
                 messageDiv.style.color = 'red';
-                messageDiv.innerText = 'Transaction failed.';
+                messageDiv.innerText = 'Failed to submit payment.';
             }
         } catch (error) {
             messageDiv.style.color = 'red';
-            messageDiv.innerText = 'Error connecting to server.';
+            messageDiv.innerText = 'Unable to connect to backend server.';
         }
     }
 
-    async function deletePayment(id) {
-        if (!confirm(`Are you sure you want to delete payment ID ${id}?`)) return;
-
+    async function updateStatus(id) {
+        const newStatus = document.getElementById(`statusSelect-${id}`).value;
         try {
-            const response = await fetch(`/api/payments/${id}`, {
-                method: 'DELETE'
+            const response = await fetch(`/api/payments/${id}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
             });
 
             if (response.ok) {
                 loadPayments();
             } else {
-                alert('Failed to delete payment.');
+                alert('Failed to update status.');
             }
         } catch (error) {
-            console.error('Error deleting payment:', error);
+            alert('Server unreachable.');
+        }
+    }
+
+    async function deletePayment(id) {
+        if (!confirm(`Delete payment ID ${id}?`)) return;
+
+        try {
+            const response = await fetch(`/api/payments/${id}`, { method: 'DELETE' });
+            if (response.ok) loadPayments();
+            else alert('Failed to delete transaction.');
+        } catch (error) {
+            alert('Server unreachable.');
         }
     }
 </script>

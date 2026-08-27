@@ -1,9 +1,7 @@
 package com.example.payclear;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "payments")
@@ -13,21 +11,40 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Payer name cannot be blank")
     private String payerName;
-
-    @NotNull(message = "Amount is required")
-    @Min(value = 1, message = "Amount must be at least 1")
     private Double amount;
+    private String status; // SUCCESS, PENDING, FAILED, REFUNDED
 
-    private String status;
+    private String paymentMethod; // UPI, CARD, NET_BANKING
+    private Double processingFee;
+    private Double gst;
+    private Double netAmount;
+
+    private String payoutStatus; // SETTLED, UNSETTLED
+    private LocalDateTime transactionDate;
 
     public Payment() {}
 
-    public Payment(String payerName, Double amount, String status) {
+    public Payment(String payerName, Double amount, String status, String paymentMethod) {
         this.payerName = payerName;
         this.amount = amount;
         this.status = status;
+        this.paymentMethod = paymentMethod;
+        this.transactionDate = LocalDateTime.now();
+        calculateFees();
+    }
+
+    public void calculateFees() {
+        if (this.amount != null && this.amount > 0) {
+            // Standard rates: 2% processing fee, 18% GST on fee
+            this.processingFee = Math.round((this.amount * 0.02) * 100.0) / 100.0;
+            this.gst = Math.round((this.processingFee * 0.18) * 100.0) / 100.0;
+            this.netAmount = Math.round((this.amount - this.processingFee - this.gst) * 100.0) / 100.0;
+        } else {
+            this.processingFee = 0.0;
+            this.gst = 0.0;
+            this.netAmount = 0.0;
+        }
     }
 
     // Getters and Setters
@@ -42,4 +59,22 @@ public class Payment {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+
+    public Double getProcessingFee() { return processingFee; }
+    public void setProcessingFee(Double processingFee) { this.processingFee = processingFee; }
+
+    public Double getGst() { return gst; }
+    public void setGst(Double gst) { this.gst = gst; }
+
+    public Double getNetAmount() { return netAmount; }
+    public void setNetAmount(Double netAmount) { this.netAmount = netAmount; }
+
+    public String getPayoutStatus() { return payoutStatus; }
+    public void setPayoutStatus(String payoutStatus) { this.payoutStatus = payoutStatus; }
+
+    public LocalDateTime getTransactionDate() { return transactionDate; }
+    public void setTransactionDate(LocalDateTime transactionDate) { this.transactionDate = transactionDate; }
 }

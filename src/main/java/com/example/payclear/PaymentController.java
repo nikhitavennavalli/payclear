@@ -21,6 +21,14 @@ public class PaymentController {
 
     @PostMapping
     public Payment createPayment(@RequestBody Payment payment) {
+        // Input Guardrails: Validate Payer Name and Amount
+        if (payment.getPayerName() == null || payment.getPayerName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Payer name cannot be empty.");
+        }
+        if (payment.getAmount() == null || payment.getAmount() <= 0) {
+            throw new IllegalArgumentException("Payment amount must be greater than zero.");
+        }
+
         if (payment.getStatus() == null || payment.getStatus().isBlank()) {
             payment.setStatus("SUCCESS");
         }

@@ -157,7 +157,7 @@
 
             const resData = await response.json();
             sqlPreview.style.display = 'block';
-            sqlPreview.innerHTML = `<strong>AI Answer:</strong> ${resData.summary}<br><br><code>Generated SQL: ${resData.sql}</code>`;
+            sqlPreview.innerHTML = `<strong>AI Answer:</strong> ${resData.summary}<br><br><code>Generated SQL:${resData.sql}</code>`;
 
             renderTable(resData.data);
             updateCharts(resData.data);
@@ -175,7 +175,7 @@
             document.getElementById('recGross').innerText = `${rec.totalGrossAmount.toFixed(2)}`;
             document.getElementById('recFees').innerText = `${(rec.totalProcessingFees + rec.totalGstDeductions).toFixed(2)}`;
             document.getElementById('recNet').innerText = `${rec.expectedBankPayout.toFixed(2)}`;
-            document.getElementById('recCount').innerText = `${rec.successfulTransactions} / ${rec.totalTransactions}`;
+            document.getElementById('recCount').innerText = `${rec.successfulTransactions} /${rec.totalTransactions}`;
         } catch (error) {
             console.error('Error fetching reconciliation summary:', error);
         }
@@ -288,17 +288,11 @@
         const paymentMethod = document.getElementById('paymentMethod').value;
         const messageDiv = document.getElementById('responseMessage');
 
-        if (!payerName || !amount || parseFloat(amount) <= 0) {
-            messageDiv.style.color = 'red';
-            messageDiv.innerText = 'Please enter a valid name and positive amount.';
-            return;
-        }
-
         try {
             const response = await fetch('/api/payments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ payerName, amount: parseFloat(amount), paymentMethod })
+                body: JSON.stringify({ payerName, amount: amount ? parseFloat(amount) : null, paymentMethod })
             });
 
             if (response.ok) {
@@ -309,8 +303,9 @@
                 document.getElementById('amount').value = '';
                 loadPayments();
             } else {
+                const errData = await response.json();
                 messageDiv.style.color = 'red';
-                messageDiv.innerText = 'Failed to submit payment.';
+                messageDiv.innerText = `Error: ${errData.message || 'Failed to submit payment.'}`;
             }
         } catch (error) {
             messageDiv.style.color = 'red';
